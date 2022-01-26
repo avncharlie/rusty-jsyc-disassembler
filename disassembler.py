@@ -108,7 +108,9 @@ class Disassembler:
 
         op_code = self.get_byte()
         op = OP_INFO[op_code]
-        instruction = [op]
+
+        # types: [OP, REGISTER, LOAD_NUM, NUM, STRING, ARRAY]
+        instruction = [('OP', op)]
 
         # loader 
         if op == "LOAD_STRING":
@@ -117,7 +119,7 @@ class Disassembler:
             """
             dst_reg = self.get_byte()
             size, string = load_string()
-            instruction += [dst_reg, size, string]
+            instruction += [('REGISTER', dst_reg), ('NUM', size), ('STRING', string)]
 
         elif op == "LOAD_NUM":
             """
@@ -125,7 +127,7 @@ class Disassembler:
             """
             dst_reg = self.get_byte()
             number = self.get_byte()
-            instruction += [dst_reg, number]
+            instruction += [('REGISTER', dst_reg), ('NUM', number)]
 
         elif op == "LOAD_FLOAT":
             """
@@ -134,7 +136,7 @@ class Disassembler:
 
             dst_reg = self.get_byte()
             float_num = load_float()
-            instruction += [dst_reg, float_num]
+            instruction += [('REGISTER', dst_reg), ('FLOAT', float_num)]
 
         elif op == "LOAD_LONG_NUM":
             """
@@ -143,7 +145,7 @@ class Disassembler:
 
             dst_reg = self.get_byte()
             num = load_long_num()
-            instruction += [dst_reg, num]
+            instruction += [('REGISTER', dst_reg), ('NUM', num)]
 
         elif op == "LOAD_ARRAY":
             """
@@ -156,7 +158,7 @@ class Disassembler:
 
             dst_reg = self.get_byte()
             arr = load_array()
-            instruction += [dst_reg, arr]
+            instruction += [('REGISTER', dst_reg), ('ARRAY', arr)]
 
         # misc
         elif op == "PROPACCESS":
@@ -173,7 +175,7 @@ class Disassembler:
             obj_reg = self.get_byte()
             prop_reg = self.get_byte()
 
-            instruction += [dst_reg, obj_reg, prop_reg] 
+            instruction += [('REGISTER', dst_reg), ('REGISTER', obj_reg), ('REGISTER', prop_reg)] 
 
         elif op == "FUNC_CALL":
             """
@@ -185,7 +187,7 @@ class Disassembler:
             func_context_reg = self.get_byte()
             arguments = load_array()
 
-            instruction += [dst_reg, func_reg, func_context_reg, arguments]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', func_reg), ('REGISTER', func_context_reg), ('ARRAY', arguments)]
 
         elif op == "EVAL":
             """
@@ -196,7 +198,7 @@ class Disassembler:
 
             dst_reg = self.get_byte()
             str_reg = self.get_byte()
-            instruction += [dst_reg, str_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', str_reg)]
 
         elif op == "CALL_BCFUNC":
             """
@@ -206,7 +208,7 @@ class Disassembler:
             func_offset = load_long_num()
             return_reg = self.get_byte()
             args_array = load_array()
-            instruction += [func_offset, return_reg, args_array]
+            instruction += [('LONG_NUM', func_offset), ('REGISTER', return_reg), ('ARRAY', args_array)]
 
         elif op == "RETURN_BCFUNC": 
             """
@@ -219,7 +221,7 @@ class Disassembler:
 
             return_reg = self.get_byte()
             excepted_regs = load_array()
-            instruction += [return_reg, excepted_regs]
+            instruction += [('REGISTER', return_reg), ('ARRAY', excepted_regs)]
 
         elif op == "COPY":
             """
@@ -230,7 +232,7 @@ class Disassembler:
 
             dst_reg = self.get_byte()
             src_reg = self.get_byte()
-            instruction += [dst_reg, src_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', src_reg)]
 
         elif op == "EXIT": 
             """
@@ -249,14 +251,14 @@ class Disassembler:
 
             condition_reg = self.get_byte()
             jump_location = load_long_num()
-            instruction += [condition_reg, jump_location]
+            instruction += [('REGISTER', condition_reg), ('LONG_NUM', jump_location)]
 
         elif op == "JUMP":
             """
             JUMP jump_location
             """
             jump_location = load_long_num()
-            instruction += [jump_location]
+            instruction += [('LONG_NUM', jump_location)]
 
         elif op == "JUMP_COND_NEG":
             """
@@ -268,7 +270,7 @@ class Disassembler:
 
             condition_reg = self.get_byte()
             jump_location = load_long_num()
-            instruction += [condition_reg, jump_location]
+            instruction += [('REGISTER', condition_reg), ('LONG_NUM', jump_location)]
 
         elif op == "BCFUNC_CALLBACK":
             """
@@ -278,7 +280,7 @@ class Disassembler:
             dst_reg = self.get_byte()
             func_location = load_long_num()
             arguments = load_array()
-            instruction += [dst_reg, func_location, arguments]
+            instruction += [('REGISTER', dst_reg), ('LONG_NUM', func_location), ('ARRAY', arguments)]
 
         elif op == "PROPSET":
             """
@@ -293,7 +295,7 @@ class Disassembler:
             obj_reg = self.get_byte()
             prop_reg = self.get_byte()
             val_reg = self.get_byte()
-            instruction += [obj_reg, prop_reg, val_reg]
+            instruction += [('REGISTER', obj_reg), ('REGISTER', prop_reg), ('REGISTER', val_reg)]
 
         elif op == "TRY":
             """
@@ -306,7 +308,7 @@ class Disassembler:
             catch_except_reg = self.get_byte()
             catch_location = load_long_num()
             finally_location = load_long_num()
-            instruction += [catch_except_reg, catch_location, finally_location]
+            instruction += [('REGISTER', catch_except_reg), ('LONG_NUM', catch_location), ('LONG_NUM', finally_location)]
 
         elif op == "THROW":
             """
@@ -315,7 +317,7 @@ class Disassembler:
             throw error stored in throw_reg
             """
             throw_reg = self.get_byte()
-            instruction += [throw_reg]
+            instruction += [('REGISTER', throw_reg)]
 
         # comparisons
         elif op == "COMP_EQUAL": 
@@ -325,7 +327,7 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [dst_reg, left_reg, right_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
 
         elif op == "COMP_NOT_EQUAL":
             """
@@ -334,7 +336,7 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [dst_reg, left_reg, right_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
 
         elif op == "COMP_STRICT_EQUAL":
             """
@@ -343,7 +345,7 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [dst_reg, left_reg, right_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
 
         elif op == "COMP_STRICT_NOT_EQUAL":
             """
@@ -352,7 +354,7 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [dst_reg, left_reg, right_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
 
         elif op == "COMP_LESS_THAN":
             """
@@ -363,7 +365,7 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [dst_reg, left_reg, right_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
 
         elif op == "COMP_GREATHER_THAN": 
             """
@@ -374,7 +376,7 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [dst_reg, left_reg, right_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
 
         elif op == "COMP_LESS_THAN_EQUAL": 
             """
@@ -385,7 +387,7 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [dst_reg, left_reg, right_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
 
         elif op == "COMP_GREATHER_THAN_EQUAL": 
             """
@@ -396,7 +398,7 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [dst_reg, left_reg, right_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
 
         # math
         elif op == "ADD":
@@ -406,7 +408,7 @@ class Disassembler:
             dst_reg = self.get_byte()
             src0_reg = self.get_byte()
             src1_reg = self.get_byte()
-            instruction += [dst_reg, src0_reg, src1_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg), ('REGISTER', src1_reg)]
 
         elif op == "MUL":
             """
@@ -415,7 +417,7 @@ class Disassembler:
             dst_reg = self.get_byte()
             src0_reg = self.get_byte()
             src1_reg = self.get_byte()
-            instruction += [dst_reg, src0_reg, src1_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg), ('REGISTER', src1_reg)]
 
         elif op == "MINUS":
             """
@@ -424,7 +426,7 @@ class Disassembler:
             dst_reg = self.get_byte()
             src0_reg = self.get_byte()
             src1_reg = self.get_byte()
-            instruction += [dst_reg, src0_reg, src1_reg]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg), ('REGISTER', src1_reg)]
 
         elif op == "DIV":
             """
@@ -433,18 +435,33 @@ class Disassembler:
             dst_reg = self.get_byte()
             src0_reg = self.get_byte()
             src1_reg = self.get_byte()
-            instruction += [dst_reg, src0_reg, src1_reg]
-
-        print(instruction) # DEBUG
+            instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg), ('REGISTER', src1_reg)]
 
         self.disassembled.append(instruction)
-        return True
 
     # perform linear disassembly of loaded bytecode
     def linear_disassemble(self, bytecode):
         while self.bytecode_pointer < len(self.bytecode):
-            could_parse = self.process_instruction()
-            #print(self.bytecode_pointer, len(self.bytecode))
+            self.process_instruction()
+
+
+    def display_assembly(self):
+        for instruction in self.disassembled:
+            display = ""
+            for data_type, data in instruction:
+                if data_type in ['OP', 'NUM', 'LONG_NUM', 'FLOAT']:
+                    display += str(data)
+                elif data_type == 'REGISTER':
+                    display += 'r' + str(data)
+                elif data_type == 'STRING':
+                    display += '"' + str(data) + '"'
+                elif data_type == 'ARRAY':
+                    display += '[' + ', '.join(['r'+str(x) for x in data]) + ']'
+                else:
+                    display += "(data type display not implemented)"
+                display += " "
+
+            print(display)
 
             
 
@@ -453,5 +470,5 @@ if __name__ == '__main__':
     bytecode = base64.b64decode(bytecode_b64)
 
     disassembler = Disassembler(bytecode)
-
-    code = disassembler.linear_disassemble(bytecode)
+    disassembler.linear_disassemble(bytecode)
+    disassembler.display_assembly()
