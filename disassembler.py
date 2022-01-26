@@ -106,10 +106,12 @@ class Disassembler:
                 arr.append(self.get_byte())
             return arr
 
+        bytecode_start = self.bytecode_pointer
+
         op_code = self.get_byte()
         op = OP_INFO[op_code]
 
-        # types: [OP, REGISTER, LOAD_NUM, NUM, STRING, ARRAY]
+        # types: [OP, REGISTER, LONG_NUM, NUM, STRING, ARRAY]
         instruction = [('OP', op)]
 
         # loader 
@@ -437,6 +439,13 @@ class Disassembler:
             src1_reg = self.get_byte()
             instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg), ('REGISTER', src1_reg)]
 
+        instruction = {
+            'instruction': instruction,
+            'bytecode_start': bytecode_start,
+            'bytecode_end': self.bytecode_pointer,
+            'corresponding_bytecode': self.bytecode[bytecode_start:self.bytecode_pointer]
+        }
+
         self.disassembled.append(instruction)
 
     # perform linear disassembly of loaded bytecode
@@ -448,7 +457,7 @@ class Disassembler:
     def display_assembly(self):
         for instruction in self.disassembled:
             display = ""
-            for data_type, data in instruction:
+            for data_type, data in instruction['instruction']:
                 if data_type in ['OP', 'NUM', 'LONG_NUM', 'FLOAT']:
                     display += str(data)
                 elif data_type == 'REGISTER':
@@ -461,9 +470,7 @@ class Disassembler:
                     display += "(data type display not implemented)"
                 display += " "
 
-            print(display)
-
-            
+            print(str(instruction['bytecode_start']) + ': ' + display)
 
 if __name__ == '__main__':
     bytecode_b64 = open(sys.argv[1]).read()
