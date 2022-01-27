@@ -495,15 +495,21 @@ class Disassembler:
             self.process_instruction()
 
 
-    def display_assembly(self):
+    def display_assembly(self, show_bytecode_index=False, use_labels=True):
         for instruction in self.disassembled:
             display = ""
+            if show_bytecode_index:
+                display = str(instruction['bytecode_start']) + ': '
+
             for data_type, data in instruction['instruction']:
                 if data_type in ['OP', 'NUM', 'LONG_NUM', 'FLOAT']:
                     display += str(data)
                 elif data_type == 'JUMP':
-                    #display +=  '(' +  str(data) + ', ' + str(self.jump_table[data]) + ')' # debug
-                    display += str(data)
+                    #display +=  '(' +  data + ', ' + str(self.jump_table[data]) + ')' # debug
+                    if use_labels:
+                        display += data
+                    else:
+                        display += str(self.jump_table[data])
                 elif data_type == 'REGISTER':
                     display += 'r' + str(data)
                 elif data_type == 'STRING':
@@ -514,7 +520,12 @@ class Disassembler:
                     display += "(data type display not implemented)"
                 display += " "
 
-            print(str(instruction['bytecode_start']) + ': ' + display)
+            if use_labels:
+                for label in self.jump_table:
+                    if self.jump_table[label] == instruction['bytecode_start']:
+                        display ='\n' + label + ':\n' + display
+
+            print(display)
 
 if __name__ == '__main__':
     bytecode_b64 = open(sys.argv[1]).read()
@@ -522,4 +533,6 @@ if __name__ == '__main__':
 
     disassembler = Disassembler(bytecode)
     disassembler.linear_disassemble(bytecode)
-    disassembler.display_assembly()
+    disassembler.display_assembly(show_bytecode_index=False, use_labels=True)
+
+    #print(disassembler.jump_table)
