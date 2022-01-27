@@ -494,6 +494,46 @@ class Disassembler:
         while self.bytecode_pointer < len(self.bytecode):
             self.process_instruction()
 
+    def re_assemble(self):
+        assembled = b''
+        for instruction in self.disassembled:
+            assembled += instruction['bytecode']
+
+        return assembled
+
+    # go through labelled instructions and make the jump = what is in the jump table
+    def apply_jump_table(self):
+        for instruction in self.disassembled:
+            bytecode_pointer = 0
+            for data_type, data in instruction['instruction']:
+                if data_type in ['OP', 'NUM', 'REGISTER']:
+                    bytecode_pointer += 1
+                elif data_type == 'LONG_NUM':
+                    bytecode_pointer += 4
+                elif data_type == 'FLOAT':
+                    bytecode_pointer += 8
+                elif data_type in ['STRING', 'ARRAY']:
+                    # strings and arrays are unbounded length and as such will
+                    # will always be at the end of instructions
+                    continue
+                elif data_type == 'JUMP':
+                    new_jump_bytes = self.jump_table[data].to_bytes(4, byteorder='big')
+
+                    #print() # DEBUG
+                    #print(list(instruction['bytecode'])) # DEBUG
+
+                    instruction['bytecode'] = instruction['bytecode'][:bytecode_pointer] \
+                            + new_jump_bytes + instruction['bytecode'][bytecode_pointer+4:]
+
+                    #print(list(instruction['bytecode'])) # DEBUG
+
+                    # DEBUG:
+                    #a,b,c,d = instruction['bytecode'][bytecode_pointer], \
+                    #    instruction['bytecode'][bytecode_pointer + 1], \
+                    #    instruction['bytecode'][bytecode_pointer + 2], \
+                    #    instruction['bytecode'][bytecode_pointer + 3]
+                    #current = a << 24 | b << 16 | c << 8 | d
+                    #print(self.jump_table[data], current)
 
     def display_assembly(self, show_bytecode_index=False, use_labels=True):
         for instruction in self.disassembled:
@@ -534,5 +574,9 @@ if __name__ == '__main__':
     disassembler = Disassembler(bytecode)
     disassembler.linear_disassemble(bytecode)
     disassembler.display_assembly(show_bytecode_index=False, use_labels=True)
+    disassembler.apply_jump_table()
 
     #print(disassembler.jump_table)
+
+    #print(disassembler.re_assemble())
+    #print(disassembler.bytecode)
