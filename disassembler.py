@@ -2,6 +2,7 @@
 
 import sys
 import base64
+import string
 
 
 OP_INFO = {
@@ -51,6 +52,19 @@ class Disassembler:
         self.bytecode = bytecode
         self.bytecode_pointer = 0
         self.disassembled = []
+        self.jump_table = {}
+        self.no_labels = 0
+
+    # keep generating label names for jumps
+    def generate_label_name(self):
+        overflow = 1
+        modulus_label_no = self.no_labels
+        self.no_labels += 1 # increment for next time
+        while modulus_label_no > 25:
+            overflow += 1
+            modulus_label_no -= 26
+
+        return string.ascii_lowercase[modulus_label_no] * overflow
 
     # get current byte and increment bytecode pointer
     def get_byte(self):
@@ -446,6 +460,26 @@ class Disassembler:
             src1_reg = self.get_byte()
             instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg), ('REGISTER', src1_reg)]
 
+
+        # add jumps to jump table
+
+        existing_jump = False
+        for index in range(len(instruction)):
+            data_type, jump_location = instruction[index]
+            if data_type == 'JUMP':
+                for label in self.jump_table:
+                    if self.jump_table[label] == jump_location:
+                        # apply label if it already exists
+                        instruction[index] = ('JUMP', label)
+                        existing_jump = True 
+                        break
+                if not existing_jump:
+                    # if label does not exist, create label and applye it
+                    new_label = self.generate_label_name()
+                    self.jump_table[new_label] = jump_location
+                    instruction[index] = ('JUMP', new_label)
+
+
         instruction = {
             'instruction': instruction,
             'bytecode_start': bytecode_start,
@@ -466,6 +500,9 @@ class Disassembler:
             display = ""
             for data_type, data in instruction['instruction']:
                 if data_type in ['OP', 'NUM', 'LONG_NUM', 'FLOAT']:
+                    display += str(data)
+                elif data_type == 'JUMP':
+                    #display +=  '(' +  str(data) + ', ' + str(self.jump_table[data]) + ')' # debug
                     display += str(data)
                 elif data_type == 'REGISTER':
                     display += 'r' + str(data)
