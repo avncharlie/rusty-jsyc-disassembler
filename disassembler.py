@@ -28,6 +28,7 @@ OP_INFO = {
     21: "PROPSET",
     22: "TRY",
     23: "THROW",
+    24: "NOP",
 
     # Comparisons
     50: "COMP_EQUAL",
@@ -342,6 +343,14 @@ class Disassembler:
             throw_reg = self.get_byte()
             instruction += [('REGISTER', throw_reg)]
 
+        elif op == "NOP":
+            """
+            NOP
+
+            no operation
+            """
+            pass
+
         # comparisons
         elif op == "COMP_EQUAL": 
             """
@@ -462,7 +471,6 @@ class Disassembler:
 
 
         # add jumps to jump table
-
         existing_jump = False
         for index in range(len(instruction)):
             data_type, jump_location = instruction[index]
@@ -494,14 +502,70 @@ class Disassembler:
         while self.bytecode_pointer < len(self.bytecode):
             self.process_instruction()
 
+    # recombulate all instruction bytecode
+    # update bytecode
     def re_assemble(self):
         assembled = b''
         for instruction in self.disassembled:
             assembled += instruction['bytecode']
 
+        self.bytecode = assembled
         return assembled
 
-    # go through labelled instructions and make the jump = what is in the jump table
+    # add instructions at certain index 
+    # will update and apply jump table
+    # will also fix bytecode_start and bytecode_end
+    # will also re_assemble
+    def insert_instructions(self, instructions, instruction_insert_index):
+        """
+        instructions:
+        given instructions must be of similar form of the parsed instructions
+        they must AT LEAST have the 'bytecode' attribute
+        they must come in a list
+
+        index:
+        the index refers to the instruction number where the new instructions
+        will be inserted. the first new instruction's index will be this given
+        index. (note: this is not a bytecode index)
+        """
+
+        bytecode_insert_index = \
+                self.disassembled[instruction_insert_index]['bytecode_start']
+
+        bytecode_insert = b''
+        for new_instr in instructions:
+            bytecode_insert += new_instr['bytecode']
+        insert_length = len(bytecode_insert)
+
+        # fix jump table
+        for label in self.jump_table:
+            if self.jump_table[label] >= bytecode_insert_index:
+                self.jump_table[label] += insert_length
+
+        # apply new jump table
+        self.apply_jump_table()
+
+        # fix bytecode_start and bytecode_end of bumped instructions
+        for bumped_i in range(instruction_insert_index, len(self.disassembled)):
+            self.disassembled[bumped_i]['bytecode_start'] += insert_length
+            self.disassembled[bumped_i]['bytecode_end'] += insert_length
+
+        # fix bytecode_start and bytecode_end of new instructions
+        new_start_index = bytecode_insert_index
+        for new_instr in instructions:
+            new_instr['bytecode_start'] = new_start_index
+            new_start_index += len(new_instr['bytecode'])
+            new_instr['bytecode_end'] = new_start_index
+
+        # insert into disassembled
+        self.disassembled = self.disassembled[:instruction_insert_index] \
+                + instructions + self.disassembled[instruction_insert_index:]
+
+        # reassemble
+        self.re_assemble()
+
+
+    # go through labelled instructions and make the jumps equal what is in the jump table
     def apply_jump_table(self):
         for instruction in self.disassembled:
             bytecode_pointer = 0
@@ -567,6 +631,23 @@ class Disassembler:
 
             print(display)
 
+    def export_bytecode(self):
+        return base64.b64encode(self.bytecode)
+
+def NOP():
+    return {
+        'instruction': [('OP', 'NOP')],
+        'bytecode': (24).to_bytes(1, byteorder='big')
+    }
+
+def NOPify(disassembler):
+    instr_amt = len(disassembler.disassembled)
+    
+    curr_insert = 0
+    while curr_insert < instr_amt*2:
+        disassembler.insert_instructions([NOP()], curr_insert)
+        curr_insert += 2
+
 if __name__ == '__main__':
     bytecode_b64 = open(sys.argv[1]).read()
     bytecode = base64.b64decode(bytecode_b64)
@@ -574,9 +655,11 @@ if __name__ == '__main__':
     disassembler = Disassembler(bytecode)
     disassembler.linear_disassemble(bytecode)
     disassembler.display_assembly(show_bytecode_index=False, use_labels=True)
-    disassembler.apply_jump_table()
 
+    #print(disassembler.export_bytecode())
     #print(disassembler.jump_table)
 
-    #print(disassembler.re_assemble())
-    #print(disassembler.bytecode)
+    #NOPify(disassembler); print()
+    #disassembler.display_assembly(show_bytecode_index=True, use_labels=False)
+    #print(disassembler.export_bytecode())
+    #print(disassembler.jump_table)
