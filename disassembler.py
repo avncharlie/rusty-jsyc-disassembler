@@ -111,7 +111,8 @@ class Disassembler:
         op_code = self.get_byte()
         op = OP_INFO[op_code]
 
-        # types: [OP, REGISTER, LONG_NUM, NUM, STRING, ARRAY]
+        # types: [OP, REGISTER, LONG_NUM, NUM, STRING, ARRAY, JUMP]
+        # JUMP = LONG_NUM used for jump locatiosn
         instruction = [('OP', op)]
 
         # loader 
@@ -147,7 +148,7 @@ class Disassembler:
 
             dst_reg = self.get_byte()
             num = load_long_num()
-            instruction += [('REGISTER', dst_reg), ('NUM', num)]
+            instruction += [('REGISTER', dst_reg), ('LONG_NUM', num)]
 
         elif op == "LOAD_ARRAY":
             """
@@ -210,7 +211,7 @@ class Disassembler:
             func_offset = load_long_num()
             return_reg = self.get_byte()
             args_array = load_array()
-            instruction += [('LONG_NUM', func_offset), ('REGISTER', return_reg), ('ARRAY', args_array)]
+            instruction += [('JUMP', func_offset), ('REGISTER', return_reg), ('ARRAY', args_array)]
 
         elif op == "RETURN_BCFUNC": 
             """
@@ -253,14 +254,14 @@ class Disassembler:
 
             condition_reg = self.get_byte()
             jump_location = load_long_num()
-            instruction += [('REGISTER', condition_reg), ('LONG_NUM', jump_location)]
+            instruction += [('REGISTER', condition_reg), ('JUMP', jump_location)]
 
         elif op == "JUMP":
             """
             JUMP jump_location
             """
             jump_location = load_long_num()
-            instruction += [('LONG_NUM', jump_location)]
+            instruction += [('JUMP', jump_location)]
 
         elif op == "JUMP_COND_NEG":
             """
@@ -272,17 +273,23 @@ class Disassembler:
 
             condition_reg = self.get_byte()
             jump_location = load_long_num()
-            instruction += [('REGISTER', condition_reg), ('LONG_NUM', jump_location)]
+            instruction += [('REGISTER', condition_reg), ('JUMP', jump_location)]
 
         elif op == "BCFUNC_CALLBACK":
             """
             BCFUNC_CALLBACK dst_reg func_location arguments
+
+            Callbacks in rusty are:
+                an actual JS function in register
+                that copies the arguments given to it (the actual JS function) to argument registers
+                then run the VM at a bytecode function that is the actual function (and pushes to stack and all)
+            The BCFUNC_CALLBACK instruction creates this JS function and stores it in a register
             """
 
             dst_reg = self.get_byte()
             func_location = load_long_num()
             arguments = load_array()
-            instruction += [('REGISTER', dst_reg), ('LONG_NUM', func_location), ('ARRAY', arguments)]
+            instruction += [('REGISTER', dst_reg), ('JUMP', func_location), ('ARRAY', arguments)]
 
         elif op == "PROPSET":
             """
@@ -443,7 +450,7 @@ class Disassembler:
             'instruction': instruction,
             'bytecode_start': bytecode_start,
             'bytecode_end': self.bytecode_pointer,
-            'corresponding_bytecode': self.bytecode[bytecode_start:self.bytecode_pointer]
+            'bytecode': self.bytecode[bytecode_start:self.bytecode_pointer]
         }
 
         self.disassembled.append(instruction)
