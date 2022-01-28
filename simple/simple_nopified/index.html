@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Simple</title>
+</head>
+<body>
+  <script src='./vm.js'> </script>
+  <script>
+    var vm = new VM();
+    //vm.init("AgQFAgUGDQAAACMDBAAEAQUBAgADbG9nCgABAgvKAAEBAxBlAwABDgMA");
+    vm.init("GAIEBRgCBQYYDQAAACsDBAAEAQUYAQIAA2xvZxgKAAECGAvKAAEBAxgQGGUDAAEYDgMA");
+    requestIdleCallback(() => vm.run());
+  </script>
+</body>
+</html>
+

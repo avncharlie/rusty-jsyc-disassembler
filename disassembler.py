@@ -1,5 +1,11 @@
 #!/usr/local/bin/python3
 
+"""
+Class to disassemble rusty-jsyc bytecode
+Can be imported to use Disassembler class, or be run directly with a command
+line argument to a b64 encrypted bytecode file to disassemble it.
+"""
+
 import sys
 import base64
 import string
@@ -50,14 +56,19 @@ OP_INFO = {
 
 class Disassembler:
     def __init__(self, bytecode):
+        """
+        Load bytecode into disassembler.
+
+        bytecode should be a byte string
+        """
         self.bytecode = bytecode
         self.bytecode_pointer = 0
         self.disassembled = []
         self.jump_table = {}
         self.no_labels = 0
 
-    # keep generating label names for jumps
     def generate_label_name(self):
+        """ Generate label names for jump labels """
         overflow = 1
         modulus_label_no = self.no_labels
         self.no_labels += 1 # increment for next time
@@ -67,17 +78,24 @@ class Disassembler:
 
         return string.ascii_lowercase[modulus_label_no] * overflow
 
-    # get current byte and increment bytecode pointer
     def get_byte(self):
+        """ Return current byte and increment bytecode pointer """
         byte = self.bytecode[self.bytecode_pointer]
         self.bytecode_pointer += 1
         return byte
 
-    # read instruction at current bytecode pointer
-    # increment bytecode_pointer to next instruction 
     def process_instruction(self):
+        """
+        Process instruction at current bytecode pointer and store in
+        self.disassembled.
+
+        Will increment self.bytecode_pointer to start of next instruction.
+        Will populate jump table (self.jump_table) as instructions with jumps
+        are read.
+        """
 
         # load data from bytecode
+
         def load_string():
             size = (self.get_byte() << 8) or self.get_byte()
             string = ''.join( [chr(self.get_byte()) for _ in range(size)] )
@@ -127,17 +145,19 @@ class Disassembler:
         op = OP_INFO[op_code]
 
         # types: [OP, REGISTER, LONG_NUM, NUM, STRING, ARRAY, JUMP]
-        # JUMP = LONG_NUM used for jump locatiosn
+        # JUMPs are LONG_NUM used to mark jump locations
         instruction = [('OP', op)]
 
-        # loader 
+        # loader instructions
+
         if op == "LOAD_STRING":
             """
             LOAD_STRING dst_reg stringlen string
             """
             dst_reg = self.get_byte()
             size, string = load_string()
-            instruction += [('REGISTER', dst_reg), ('NUM', size), ('STRING', string)]
+            instruction += [('REGISTER', dst_reg), ('NUM', size), 
+                    ('STRING', string)]
 
         elif op == "LOAD_NUM":
             """
@@ -169,9 +189,9 @@ class Disassembler:
             """
             LOAD_ARRAY dst_reg array
 
-            array elements are registers to generate array from
-            array will be constructed using them current register values
-            array will then be loaded into dst_reg
+            Array elements are registers to generate array from
+            Array will be constructed using them current register values
+            Array will then be loaded into dst_reg
             """
 
             dst_reg = self.get_byte()
@@ -183,17 +203,18 @@ class Disassembler:
             """
             PROPACCESS dst_reg obj_reg prop_reg
 
-            loads object stored in obj_reg
-            loads property stored in prop_reg
+            Loads object stored in obj_reg
+            Loads property stored in prop_reg
 
-            stores object[property] in dst_reg
+            Stores object[property] in dst_reg
             """
 
             dst_reg = self.get_byte()
             obj_reg = self.get_byte()
             prop_reg = self.get_byte()
 
-            instruction += [('REGISTER', dst_reg), ('REGISTER', obj_reg), ('REGISTER', prop_reg)] 
+            instruction += [('REGISTER', dst_reg), ('REGISTER', obj_reg),
+                    ('REGISTER', prop_reg)] 
 
         elif op == "FUNC_CALL":
             """
@@ -205,13 +226,14 @@ class Disassembler:
             func_context_reg = self.get_byte()
             arguments = load_array()
 
-            instruction += [('REGISTER', dst_reg), ('REGISTER', func_reg), ('REGISTER', func_context_reg), ('ARRAY', arguments)]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', func_reg),
+                    ('REGISTER', func_context_reg), ('ARRAY', arguments)]
 
         elif op == "EVAL":
             """
             EVAL dst_reg str_reg
 
-            load string from str_reg, evaluate and store result in dst_reg
+            Load string from str_reg, evaluate and store result in dst_reg
             """
 
             dst_reg = self.get_byte()
@@ -226,14 +248,15 @@ class Disassembler:
             func_offset = load_long_num()
             return_reg = self.get_byte()
             args_array = load_array()
-            instruction += [('JUMP', func_offset), ('REGISTER', return_reg), ('ARRAY', args_array)]
+            instruction += [('JUMP', func_offset), ('REGISTER', return_reg),
+                    ('ARRAY', args_array)]
 
         elif op == "RETURN_BCFUNC": 
             """
             RETURN_BCFUNC return_reg excepted_regs
 
-            return_reg = register which holds return value
-            excepted_regs = registers that shouldn't be restored after function
+            Return_reg = register which holds return value
+            Excepted_regs = registers that shouldn't be restored after function
             exits
             """
 
@@ -245,7 +268,7 @@ class Disassembler:
             """
             COPY dst_reg src_reg
 
-            copy value in src_reg into dst_reg
+            Copy value in src_reg into dst_reg
             """
 
             dst_reg = self.get_byte()
@@ -255,7 +278,8 @@ class Disassembler:
         elif op == "EXIT": 
             """
             EXIT 
-            op code
+            
+            Exits VM
             """
             pass
 
@@ -263,13 +287,14 @@ class Disassembler:
             """
             COND_JUMP condition_reg jump_location
 
-            load condition (bool expr) from condition_reg
-            if condition, jump to jump_location 
+            Load condition (bool expr) from condition_reg
+            If condition, jump to jump_location 
             """
 
             condition_reg = self.get_byte()
             jump_location = load_long_num()
-            instruction += [('REGISTER', condition_reg), ('JUMP', jump_location)]
+            instruction += [('REGISTER', condition_reg),
+                    ('JUMP', jump_location)]
 
         elif op == "JUMP":
             """
@@ -282,44 +307,51 @@ class Disassembler:
             """
             JUMP_COND_NEG condition_reg jump_location
 
-            load condition (bool expr) from condition_reg
-            if not condition, jump to jump_location 
+            Load condition (bool expr) from condition_reg
+            If not condition, jump to jump_location 
             """
 
             condition_reg = self.get_byte()
             jump_location = load_long_num()
-            instruction += [('REGISTER', condition_reg), ('JUMP', jump_location)]
+            instruction += [('REGISTER', condition_reg),
+                    ('JUMP', jump_location)]
 
         elif op == "BCFUNC_CALLBACK":
             """
             BCFUNC_CALLBACK dst_reg func_location arguments
 
             Callbacks in rusty are:
-                an actual JS function in register
-                that copies the arguments given to it (the actual JS function) to argument registers
-                then run the VM at a bytecode function that is the actual function (and pushes to stack and all)
-            The BCFUNC_CALLBACK instruction creates this JS function and stores it in a register
+              - An actual JS function in a register
+              - That copies the arguments given to it (the actual JS function)
+                to argument registers
+              - Then runs the VM at a bytecode function that is the actual
+                function as well as internally pushing things to stack as if it
+                was a normal function.
+            The BCFUNC_CALLBACK instruction creates this JS function and stores
+            it in a register.
             """
 
             dst_reg = self.get_byte()
             func_location = load_long_num()
             arguments = load_array()
-            instruction += [('REGISTER', dst_reg), ('JUMP', func_location), ('ARRAY', arguments)]
+            instruction += [('REGISTER', dst_reg), ('JUMP', func_location),
+                    ('ARRAY', arguments)]
 
         elif op == "PROPSET":
             """
             PROPSET obj_reg prop_reg val_reg
 
-            load object from obj_reg
-            load property from prop_reg
-            load value from val_reg
-            set object[property] to value
+            Load object from obj_reg
+            Load property from prop_reg
+            Load value from val_reg
+            Set object[property] to value
             """
 
             obj_reg = self.get_byte()
             prop_reg = self.get_byte()
             val_reg = self.get_byte()
-            instruction += [('REGISTER', obj_reg), ('REGISTER', prop_reg), ('REGISTER', val_reg)]
+            instruction += [('REGISTER', obj_reg), ('REGISTER', prop_reg),
+                    ('REGISTER', val_reg)]
 
         elif op == "TRY":
             """
@@ -332,13 +364,15 @@ class Disassembler:
             catch_except_reg = self.get_byte()
             catch_location = load_long_num()
             finally_location = load_long_num()
-            instruction += [('REGISTER', catch_except_reg), ('LONG_NUM', catch_location), ('LONG_NUM', finally_location)]
+            instruction += [('REGISTER', catch_except_reg),
+                    ('LONG_NUM', catch_location),
+                    ('LONG_NUM', finally_location)]
 
         elif op == "THROW":
             """
             THROW throw_reg
 
-            throw error stored in throw_reg
+            Throw error stored in throw_reg
             """
             throw_reg = self.get_byte()
             instruction += [('REGISTER', throw_reg)]
@@ -347,7 +381,7 @@ class Disassembler:
             """
             NOP
 
-            no operation
+            No operation
             """
             pass
 
@@ -359,7 +393,8 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg),
+                    ('REGISTER', right_reg)]
 
         elif op == "COMP_NOT_EQUAL":
             """
@@ -368,7 +403,8 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg),
+                    ('REGISTER', right_reg)]
 
         elif op == "COMP_STRICT_EQUAL":
             """
@@ -377,7 +413,8 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg),
+                    ('REGISTER', right_reg)]
 
         elif op == "COMP_STRICT_NOT_EQUAL":
             """
@@ -386,7 +423,8 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg),
+                    ('REGISTER', right_reg)]
 
         elif op == "COMP_LESS_THAN":
             """
@@ -397,7 +435,8 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg),
+                    ('REGISTER', right_reg)]
 
         elif op == "COMP_GREATHER_THAN": 
             """
@@ -408,7 +447,8 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg),
+                    ('REGISTER', right_reg)]
 
         elif op == "COMP_LESS_THAN_EQUAL": 
             """
@@ -419,7 +459,8 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg),
+                    ('REGISTER', right_reg)]
 
         elif op == "COMP_GREATHER_THAN_EQUAL": 
             """
@@ -430,7 +471,8 @@ class Disassembler:
             dst_reg = self.get_byte()
             left_reg = self.get_byte()
             right_reg = self.get_byte()
-            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg), ('REGISTER', right_reg)]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', left_reg),
+                    ('REGISTER', right_reg)]
 
         # math
         elif op == "ADD":
@@ -440,7 +482,8 @@ class Disassembler:
             dst_reg = self.get_byte()
             src0_reg = self.get_byte()
             src1_reg = self.get_byte()
-            instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg), ('REGISTER', src1_reg)]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg),
+                    ('REGISTER', src1_reg)]
 
         elif op == "MUL":
             """
@@ -449,7 +492,8 @@ class Disassembler:
             dst_reg = self.get_byte()
             src0_reg = self.get_byte()
             src1_reg = self.get_byte()
-            instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg), ('REGISTER', src1_reg)]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg),
+                    ('REGISTER', src1_reg)]
 
         elif op == "MINUS":
             """
@@ -458,7 +502,8 @@ class Disassembler:
             dst_reg = self.get_byte()
             src0_reg = self.get_byte()
             src1_reg = self.get_byte()
-            instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg), ('REGISTER', src1_reg)]
+            instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg),
+                    ('REGISTER', src1_reg)]
 
         elif op == "DIV":
             """
@@ -467,8 +512,8 @@ class Disassembler:
             dst_reg = self.get_byte()
             src0_reg = self.get_byte()
             src1_reg = self.get_byte()
-            instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg), ('REGISTER', src1_reg)]
-
+            instruction += [('REGISTER', dst_reg), ('REGISTER', src0_reg),
+                    ('REGISTER', src1_reg)]
 
         # add jumps to jump table
         existing_jump = False
@@ -482,7 +527,7 @@ class Disassembler:
                         existing_jump = True 
                         break
                 if not existing_jump:
-                    # if label does not exist, create label and applye it
+                    # if label does not exist, create label and apply it
                     new_label = self.generate_label_name()
                     self.jump_table[new_label] = jump_location
                     instruction[index] = ('JUMP', new_label)
@@ -497,14 +542,19 @@ class Disassembler:
 
         self.disassembled.append(instruction)
 
-    # perform linear disassembly of loaded bytecode
     def linear_disassemble(self, bytecode):
+        """ Perform linear disassembly of loaded bytecode """
         while self.bytecode_pointer < len(self.bytecode):
             self.process_instruction()
 
     # recombulate all instruction bytecode
     # update bytecode
     def re_assemble(self):
+        """
+        Read through instructions and combine together bytecode.
+        
+        Return combined bytecode as well as updating self.bytecode with it.
+        """
         assembled = b''
         for instruction in self.disassembled:
             assembled += instruction['bytecode']
@@ -512,21 +562,24 @@ class Disassembler:
         self.bytecode = assembled
         return assembled
 
-    # add instructions at certain index 
-    # will update and apply jump table
-    # will also fix bytecode_start and bytecode_end
-    # will also re_assemble
     def insert_instructions(self, instructions, instruction_insert_index):
         """
-        instructions:
-        given instructions must be of similar form of the parsed instructions
-        they must AT LEAST have the 'bytecode' attribute
-        they must come in a list
+        Add instructions at a certain index.
 
-        index:
-        the index refers to the instruction number where the new instructions
-        will be inserted. the first new instruction's index will be this given
-        index. (note: this is not a bytecode index)
+        Will change and apply jump table. Will change 'bytecode_start' and 
+        'bytecode_end' attributes of all affected instructions. Will also 
+        reassemble bytecode.
+
+        Arguments
+         -- instructions
+        Given instructions must be of similar form of the generated instruction
+        dictionaries. They must at least have the 'bytecode' attribute.
+        They must be in a list.
+
+        -- instruction_insert_index:
+        This index refers to the instruction number where the new instructions
+        will be inserted. The first new instruction's index will be this given
+        index.
         """
 
         bytecode_insert_index = \
@@ -565,8 +618,12 @@ class Disassembler:
         self.re_assemble()
 
 
-    # go through labelled instructions and make the jumps equal what is in the jump table
     def apply_jump_table(self):
+        """ 
+        Traverse jump table and rewrite instructions jumping to labels to
+        correspond to jump locations in jump table.
+        """ 
+
         for instruction in self.disassembled:
             bytecode_pointer = 0
             for data_type, data in instruction['instruction']:
@@ -581,15 +638,13 @@ class Disassembler:
                     # will always be at the end of instructions
                     continue
                 elif data_type == 'JUMP':
-                    new_jump_bytes = self.jump_table[data].to_bytes(4, byteorder='big')
+                    new_jump_bytes = self.jump_table[data].to_bytes(4,
+                            byteorder='big')
 
-                    #print() # DEBUG
-                    #print(list(instruction['bytecode'])) # DEBUG
-
-                    instruction['bytecode'] = instruction['bytecode'][:bytecode_pointer] \
-                            + new_jump_bytes + instruction['bytecode'][bytecode_pointer+4:]
-
-                    #print(list(instruction['bytecode'])) # DEBUG
+                    instruction['bytecode'] = \
+                            instruction['bytecode'][:bytecode_pointer] \
+                            + new_jump_bytes \
+                            + instruction['bytecode'][bytecode_pointer+4:]
 
                     # DEBUG:
                     #a,b,c,d = instruction['bytecode'][bytecode_pointer], \
@@ -600,6 +655,7 @@ class Disassembler:
                     #print(self.jump_table[data], current)
 
     def display_assembly(self, show_bytecode_index=False, use_labels=True):
+        """ Display disassembled bytecode """
         for instruction in self.disassembled:
             display = ""
             if show_bytecode_index:
@@ -609,7 +665,6 @@ class Disassembler:
                 if data_type in ['OP', 'NUM', 'LONG_NUM', 'FLOAT']:
                     display += str(data)
                 elif data_type == 'JUMP':
-                    #display +=  '(' +  data + ', ' + str(self.jump_table[data]) + ')' # debug
                     if use_labels:
                         display += data
                     else:
@@ -632,38 +687,50 @@ class Disassembler:
             print(display)
 
     def export_bytecode(self):
+        """ Export bytecode to use in VM """
         return base64.b64encode(self.bytecode)
 
-def NOP():
-    return {
-        'instruction': [('OP', 'NOP')],
-        'bytecode': (24).to_bytes(1, byteorder='big')
-    }
 
 def NOPify(disassembler):
+    def NOP():
+        """ return NOP instruction """
+        return {
+            'instruction': [('OP', 'NOP')],
+            'bytecode': (24).to_bytes(1, byteorder='big')
+        }
+
+    """ insert NOP instructions every two instructions in bytecode """
     instr_amt = len(disassembler.disassembled)
-    
     curr_insert = 0
     while curr_insert < instr_amt*2:
         disassembler.insert_instructions([NOP()], curr_insert)
         curr_insert += 2
 
 if __name__ == '__main__':
+    # read bytecode file and decode
     bytecode_b64 = open(sys.argv[1]).read()
     bytecode = base64.b64decode(bytecode_b64)
 
+    # disassemble bytecode
     disassembler = Disassembler(bytecode)
     disassembler.linear_disassemble(bytecode)
-    #disassembler.display_assembly(show_bytecode_index=True, use_labels=False) # not fancy assembly display
-    #print('-'*30)
-    disassembler.display_assembly(show_bytecode_index=False, use_labels=True) # fancy assembly display
 
+    # fancy assembly display
+    disassembler.display_assembly(show_bytecode_index=False, use_labels=True) 
 
-    #print(disassembler.export_bytecode()) # prints b64 encrypted bytecode to use in VM
-    #print(disassembler.jump_table) # prints jump table
+    # not fancy assembly display
+    #disassembler.display_assembly(show_bytecode_index=True, use_labels=False) 
 
-    # use this to nopify and display loaded bytecode:
-    #NOPify(disassembler); print()
-    #disassembler.display_assembly(show_bytecode_index=True, use_labels=False)
-    #print(disassembler.export_bytecode())
-    #print(disassembler.jump_table)
+    """
+    Useful functionality: 
+
+    Display jump table:
+    print(disassembler.jump_table)
+
+    Export bytecode to copy into VM:
+    print(disassembler.export_bytecode())
+
+    'NOPify' bytecode (will NOPify bytecode in place, display assembly again
+    to see NOPified code)
+    NOPify(disassembler)
+    """
