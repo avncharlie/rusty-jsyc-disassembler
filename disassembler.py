@@ -654,11 +654,15 @@ if __name__ == '__main__':
 
     disassembler = Disassembler(bytecode)
     disassembler.linear_disassemble(bytecode)
-    disassembler.display_assembly(show_bytecode_index=False, use_labels=True)
+    #disassembler.display_assembly(show_bytecode_index=True, use_labels=False) # not fancy assembly display
+    #print('-'*30)
+    disassembler.display_assembly(show_bytecode_index=False, use_labels=True) # fancy assembly display
 
-    #print(disassembler.export_bytecode())
-    #print(disassembler.jump_table)
 
+    #print(disassembler.export_bytecode()) # prints b64 encrypted bytecode to use in VM
+    #print(disassembler.jump_table) # prints jump table
+
+    # use this to nopify and display loaded bytecode:
     #NOPify(disassembler); print()
     #disassembler.display_assembly(show_bytecode_index=True, use_labels=False)
     #print(disassembler.export_bytecode())
