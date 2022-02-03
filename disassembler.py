@@ -4,6 +4,9 @@
 Class to disassemble rusty-jsyc bytecode
 Can be imported to use Disassembler class, or be run directly with a command
 line argument to a b64 encrypted bytecode file to disassemble it.
+
+Author: Alvin Charles
+Email: alvinjoycharles@gmail.com
 """
 
 import sys
@@ -713,9 +716,11 @@ class Disassembler:
 
 
 def int_to_byte(n):
+    """ convert int into byte """
     return n.to_bytes(1, byteorder='big')
 
 def ints_to_bytes(n_list):
+    """ convert a list of ints into a bytestring """
     return b''.join([int_to_byte(x) for x in n_list])
 
 def NOPify(disassembler):
@@ -739,19 +744,22 @@ def bytecode_base64_string_decoder():
     Return bytecode function to deobfuscate strings
 
     Function assumes 'atob' is loaded in r203
-    Function takes string to deobfuscate in r0 and returns deobfuscated string in r1
+    Function takes string to deobfuscate in r0 and returns deobfuscated string
+    in r1
     """
     decoder = [
         {
             # FUNC_CALL r1 r1000 r253 [r0]
             # deobfuscate string in r0 using atob, store in r1
-            'instruction': [('OP', 'FUNC_CALL'), ('REGISTER', 1), ('REGISTER', 203), ('REGISTER', 253), ('ARRAY', [0])],
+            'instruction': [('OP', 'FUNC_CALL'), ('REGISTER', 1),
+                ('REGISTER', 203), ('REGISTER', 253), ('ARRAY', [0])],
             'bytecode': ints_to_bytes([11, 1, 203, 253, 1, 0])
         },
         {
             # RETURN_BCFUNC r1 []
             # return function with value in r1
-            'instruction': [('OP', 'RETURN_BCFUNC'), ('REGISTER', 1), ('ARRAY', [])],
+            'instruction': [('OP', 'RETURN_BCFUNC'), ('REGISTER', 1),
+                ('ARRAY', [])],
             'bytecode': ints_to_bytes([14, 1, 0])
         }
     ]
@@ -760,7 +768,7 @@ def bytecode_base64_string_decoder():
 
 def base64_string_encode(s):
     """
-    Return base64 representation of s
+    Return base64 representation of string
     """
     return base64.b64encode(s.encode('ascii')).decode('ascii')
 
@@ -778,21 +786,27 @@ def obfuscate_strings(disassembler, decoder_bytecode, encoder_func):
         }
 
     def call_decoder(string_reg):
-        """ Generate instruction to call decoder on string loaded in load_register """
+        """
+        Generate instruction to call decoder on string loaded in load_register
+        """
         return {
             # CALL_BCFUNC decoder r<string_reg> [r0, r<string_reg>]
             # call decoder, return value in string_reg (overwriting obfuscated
             # str with deobfuscated str), pass string as argument into r0
-            'instruction': [('OP', 'CALL_BCFUNC'), ('JUMP', 'decoder'), ('REGISTER', string_reg), ('ARRAY', [0, string_reg])],
-            'bytecode': ints_to_bytes([13, 0, 0, 0, 0, string_reg, 2, 0, string_reg])
+            'instruction': [('OP', 'CALL_BCFUNC'), ('JUMP', 'decoder'),
+                ('REGISTER', string_reg), ('ARRAY', [0, string_reg])],
+            'bytecode': ints_to_bytes([13, 0, 0, 0, 0, string_reg, 2, 0,
+                string_reg])
         }
 
     # add decoder to end of bytecode
-    disassembler.insert_instructions([EXIT()] + decoder_bytecode, len(disassembler.disassembled)-1,
+    disassembler.insert_instructions([EXIT()] + decoder_bytecode,
+            len(disassembler.disassembled)-1,
             insert_after_index=True)
 
     # add label to start of decoder
-    disassembler.add_named_label('decoder', disassembler.disassembled[-2]['bytecode_start'])
+    disassembler.add_named_label('decoder',
+            disassembler.disassembled[-2]['bytecode_start'])
 
     # insert calls to decoder
     # obfuscate strings
@@ -806,7 +820,8 @@ def obfuscate_strings(disassembler, decoder_bytecode, encoder_func):
             decode_call = call_decoder(string_reg)
             disassembler.insert_instructions([decode_call], instruction_index+1)
 
-            # TODO: should be an 'modify instruction' interface that does this stuff
+            # TODO: should be an 'modify instruction' interface that does this
+            # stuff
 
             # replace original string with encoded string
             orig_str = instruction['instruction'][3][1]
@@ -817,7 +832,8 @@ def obfuscate_strings(disassembler, decoder_bytecode, encoder_func):
 
             new_size_bytes = encoded_str_len.to_bytes(2, byteorder='big')
             encoded_str_bytes = encoded_str.encode('ascii')
-            instruction['bytecode'] = instruction['bytecode'][:2] + new_size_bytes + encoded_str_bytes
+            instruction['bytecode'] = instruction['bytecode'][:2] \
+                + new_size_bytes + encoded_str_bytes
 
             # instruction length (could have) changed, re-calculate indices
             disassembler.fix_bytecode_indexes()
@@ -827,7 +843,8 @@ def obfuscate_strings(disassembler, decoder_bytecode, encoder_func):
             
             # fix jump table
             for label in disassembler.jump_table:
-                if disassembler.jump_table[label] >= instruction['bytecode_end']:
+                if disassembler.jump_table[label] >= \
+                        instruction['bytecode_end']:
                     disassembler.jump_table[label] += size_diff 
 
             # apply new jump table
@@ -839,23 +856,12 @@ def obfuscate_strings(disassembler, decoder_bytecode, encoder_func):
     disassembler.re_assemble()
 
 
-"""
-    - display_basic
-    - display_fancy
-    - NOPify
-    - obfuscate_strings
-    - export_bytecode
-
-    ./disassembler.py FILE 
-"""
-
 if __name__ == '__main__':
 
     if len(sys.argv) == 1:
         print('''./disassembler.py bytecode_file [action]*
-i.e
 File to disassemble must be provided.
-Then any amount of actions can be listed afterwards.
+Any amount of actions can be listed afterwards.
 If no actions provided, the display_basic action will trigger.
 
 Examples:
@@ -863,7 +869,7 @@ Examples:
   Display disassembly of file
   
   $ ./disassembler.py file NOPify export_bytecode
-  Export NOPIfied bytecode of file (to paste into VM)
+  Export NOPIfied bytecode of file
 
   $ ./disassembler.py file NOPify NOPify export_bytecode
   Export doubly NOPIfied bytecode of file
@@ -880,7 +886,7 @@ Parameters
     display_basic: Display basic disassembly of bytecode
     display_fancy: Display disassembly of bytecode with labels
     NOPify: Disperse NOPs throughout loaded bytecode
-    obf: Obfuscate strings present in loaded bytecode
+    obf_strings: Obfuscate strings present in loaded bytecode
     export: Export loaded bytecode (base64 encrypted) to paste into vm
     jumps: Display jump table of loaded bytecode''')
         exit()
@@ -897,15 +903,18 @@ Parameters
 
     for action in action_stack:
         if action == 'display_basic':
-            disassembler.display_assembly(show_bytecode_index=True, use_labels=False) 
+            disassembler.display_assembly(show_bytecode_index=True,
+                    use_labels=False) 
             print('------')
         elif action == 'display_fancy':
-            disassembler.display_assembly(show_bytecode_index=False, use_labels=True) 
+            disassembler.display_assembly(show_bytecode_index=False,
+                    use_labels=True) 
             print('------')
         elif action == 'NOPify':
             NOPify(disassembler)
         elif action == 'obf_strings':
-            obfuscate_strings(disassembler, bytecode_base64_string_decoder(), base64_string_encode)
+            obfuscate_strings(disassembler, bytecode_base64_string_decoder(),
+                    base64_string_encode)
         elif action == 'export':
             print(disassembler.export_bytecode())
             print('------')
@@ -914,43 +923,3 @@ Parameters
             print('------')
         else:
             print('action: ' + action + ' not recognised')
-
-    # not fancy assembly display
-    #disassembler.display_assembly(show_bytecode_index=True, use_labels=False) 
-    #print(disassembler.export_bytecode())
-
-    #print('------')
-
-    # obfuscate strings
-    #obfuscate_strings(disassembler, bytecode_base64_string_decoder(), base64_string_encode)
-    #disassembler.display_assembly(show_bytecode_index=True, use_labels=False) 
-    #str_obfuscated = disassembler.export_bytecode()
-    #print(str_obfuscated)
-
-    #print('------')
-
-    # DEBUG
-    #str_obfuscated_decoded = base64.b64decode(str_obfuscated)
-    #checking_disassembler = Disassembler(str_obfuscated_decoded)
-    #checking_disassembler.linear_disassemble()
-    #checking_disassembler.display_assembly(show_bytecode_index=True, use_labels=False) 
-
-    # DEBUG
-    #for x in disassembler.disassembled:
-    #    print('--------------------')
-    #    print(x['instruction'])
-    #    print(list(x['bytecode']))
-
-    """
-    Useful functionality: 
-
-    Display jump table:
-    print(disassembler.jump_table)
-
-    Export bytecode to copy into VM:
-    print(disassembler.export_bytecode())
-
-    'NOPify' bytecode (will NOPify bytecode in place, display assembly again
-    to see NOPified code)
-    NOPify(disassembler)
-    """
