@@ -542,7 +542,7 @@ class Disassembler:
 
         self.disassembled.append(instruction)
 
-    def linear_disassemble(self, bytecode):
+    def linear_disassemble(self):
         """ Perform linear disassembly of loaded bytecode """
         while self.bytecode_pointer < len(self.bytecode):
             self.process_instruction()
@@ -562,7 +562,27 @@ class Disassembler:
         self.bytecode = assembled
         return assembled
 
-    def insert_instructions(self, instructions, instruction_insert_index):
+    def add_named_label(self, label_name, location):
+        """
+        Add named label anywhere in bytecode.
+
+        Useful when inserting instructions (to jump to this label)
+        """
+        self.jump_table[label_name] = location
+
+    def fix_bytecode_indexes(self):
+        """
+        Will ensure bytecode_start and bytecode_end values are correct
+        Used when inserting / modifying instructions 
+        """
+        start_bump = 0
+        for instruction in self.disassembled:
+            instruction['bytecode_start'] = start_bump
+            start_bump += len(instruction['bytecode'])
+            instruction['bytecode_end'] = start_bump
+
+    def insert_instructions(self, instructions, instruction_insert_index,
+            insert_after_index=False):
         """
         Add instructions at a certain index.
 
@@ -577,13 +597,18 @@ class Disassembler:
         They must be in a list.
 
         -- instruction_insert_index:
-        This index refers to the instruction number where the new instructions
-        will be inserted. The first new instruction's index will be this given
-        index.
+        If insert_after_index, the instruction will be inserted after
+        instruction_insert_index.
+        If not insert_after_index, instruction will be inserted at
+        instruction_insert_index (moving instruction currently there forward)
         """
 
-        bytecode_insert_index = \
+        if not insert_after_index:
+            bytecode_insert_index = \
                 self.disassembled[instruction_insert_index]['bytecode_start']
+        else:
+            bytecode_insert_index = \
+                self.disassembled[instruction_insert_index]['bytecode_end']
 
         bytecode_insert = b''
         for new_instr in instructions:
@@ -598,21 +623,17 @@ class Disassembler:
         # apply new jump table
         self.apply_jump_table()
 
-        # fix bytecode_start and bytecode_end of bumped instructions
-        for bumped_i in range(instruction_insert_index, len(self.disassembled)):
-            self.disassembled[bumped_i]['bytecode_start'] += insert_length
-            self.disassembled[bumped_i]['bytecode_end'] += insert_length
-
-        # fix bytecode_start and bytecode_end of new instructions
-        new_start_index = bytecode_insert_index
-        for new_instr in instructions:
-            new_instr['bytecode_start'] = new_start_index
-            new_start_index += len(new_instr['bytecode'])
-            new_instr['bytecode_end'] = new_start_index
-
         # insert into disassembled
-        self.disassembled = self.disassembled[:instruction_insert_index] \
+        if not insert_after_index:
+            self.disassembled = self.disassembled[:instruction_insert_index] \
                 + instructions + self.disassembled[instruction_insert_index:]
+        else:
+            self.disassembled = self.disassembled[:instruction_insert_index+1] \
+                + instructions + self.disassembled[instruction_insert_index+1:]
+
+
+        # fix bytecode indexes
+        self.fix_bytecode_indexes()
 
         # reassemble
         self.re_assemble()
@@ -691,20 +712,131 @@ class Disassembler:
         return base64.b64encode(self.bytecode)
 
 
+def int_to_byte(n):
+    return n.to_bytes(1, byteorder='big')
+
+def ints_to_bytes(n_list):
+    return b''.join([int_to_byte(x) for x in n_list])
+
 def NOPify(disassembler):
+    """ insert NOP instructions every two instructions in bytecode """
+
     def NOP():
         """ return NOP instruction """
         return {
             'instruction': [('OP', 'NOP')],
-            'bytecode': (24).to_bytes(1, byteorder='big')
+            'bytecode': int_to_byte(24)
         }
 
-    """ insert NOP instructions every two instructions in bytecode """
     instr_amt = len(disassembler.disassembled)
     curr_insert = 0
     while curr_insert < instr_amt*2:
         disassembler.insert_instructions([NOP()], curr_insert)
         curr_insert += 2
+
+def bytecode_base64_string_decoder():
+    """
+    Return bytecode function to deobfuscate strings
+
+    Function assumes 'atob' is loaded in r203
+    Function takes string to deobfuscate in r0 and returns deobfuscated string in r1
+    """
+    decoder = [
+        {
+            # FUNC_CALL r1 r1000 r253 [r0]
+            # deobfuscate string in r0 using atob, store in r1
+            'instruction': [('OP', 'FUNC_CALL'), ('REGISTER', 1), ('REGISTER', 203), ('REGISTER', 253), ('ARRAY', [0])],
+            'bytecode': ints_to_bytes([11, 1, 203, 253, 1, 0])
+        },
+        {
+            # RETURN_BCFUNC r1 []
+            # return function with value in r1
+            'instruction': [('OP', 'RETURN_BCFUNC'), ('REGISTER', 1), ('ARRAY', [])],
+            'bytecode': ints_to_bytes([14, 1, 0])
+        }
+    ]
+
+    return decoder
+
+def base64_string_encode(s):
+    """
+    Return base64 representation of s
+    """
+    return base64.b64encode(s.encode('ascii')).decode('ascii')
+
+def obfuscate_strings(disassembler, decoder_bytecode, encoder_func):
+    """
+    Obfuscate strings in bytecode
+    Needs 'this.setReg(203, atob);' to be added to init function in vm
+    """
+
+    def EXIT():
+        """ return EXIT instruction """
+        return {
+            'instruction': [('OP', 'EXIT')],
+            'bytecode': int_to_byte(16)
+        }
+
+    def call_decoder(string_reg):
+        """ Generate instruction to call decoder on string loaded in load_register """
+        return {
+            # CALL_BCFUNC decoder r<string_reg> [r0, r<string_reg>]
+            # call decoder, return value in string_reg (overwriting obfuscated
+            # str with deobfuscated str), pass string as argument into r0
+            'instruction': [('OP', 'CALL_BCFUNC'), ('JUMP', 'decoder'), ('REGISTER', string_reg), ('ARRAY', [0, string_reg])],
+            'bytecode': ints_to_bytes([13, 0, 0, 0, 0, string_reg, 2, 0, string_reg])
+        }
+
+    # add decoder to end of bytecode
+    disassembler.insert_instructions([EXIT()] + decoder_bytecode, len(disassembler.disassembled)-1,
+            insert_after_index=True)
+
+    # add label to start of decoder
+    disassembler.add_named_label('decoder', disassembler.disassembled[-2]['bytecode_start'])
+
+    # insert calls to decoder
+    # obfuscate strings
+    instruction_index = 0
+    while instruction_index < len(disassembler.disassembled):
+        instruction = disassembler.disassembled[instruction_index]
+
+        if instruction['instruction'][0][1] == 'LOAD_STRING':
+            # insert decoder call
+            string_reg = instruction['instruction'][1][1]
+            decode_call = call_decoder(string_reg)
+            disassembler.insert_instructions([decode_call], instruction_index+1)
+
+            # TODO: should be an 'modify instruction' interface that does this stuff
+
+            # replace original string with encoded string
+            orig_str = instruction['instruction'][3][1]
+            encoded_str = encoder_func(orig_str)
+            encoded_str_len = len(encoded_str)
+            instruction['instruction'][2] = ('NUM', encoded_str_len)
+            instruction['instruction'][3] = ('STRING', encoded_str)
+
+            new_size_bytes = encoded_str_len.to_bytes(2, byteorder='big')
+            encoded_str_bytes = encoded_str.encode('ascii')
+            instruction['bytecode'] = instruction['bytecode'][:2] + new_size_bytes + encoded_str_bytes
+
+            # instruction length (could have) changed, re-calculate indices
+            disassembler.fix_bytecode_indexes()
+
+            # difference to modify jumps from 
+            size_diff = encoded_str_len - len(orig_str)
+            
+            # fix jump table
+            for label in disassembler.jump_table:
+                if disassembler.jump_table[label] >= instruction['bytecode_end']:
+                    disassembler.jump_table[label] += size_diff 
+
+            # apply new jump table
+            disassembler.apply_jump_table()
+
+        instruction_index += 1
+
+    # combine bytecode together again
+    disassembler.re_assemble()
 
 if __name__ == '__main__':
     # read bytecode file and decode
@@ -713,13 +845,36 @@ if __name__ == '__main__':
 
     # disassemble bytecode
     disassembler = Disassembler(bytecode)
-    disassembler.linear_disassemble(bytecode)
+    disassembler.linear_disassemble()
 
     # fancy assembly display
-    disassembler.display_assembly(show_bytecode_index=False, use_labels=True) 
+    #disassembler.display_assembly(show_bytecode_index=False, use_labels=True) 
 
     # not fancy assembly display
     #disassembler.display_assembly(show_bytecode_index=True, use_labels=False) 
+    #print(disassembler.export_bytecode())
+
+    #print('------')
+
+    ## obfuscate strings
+    obfuscate_strings(disassembler, bytecode_base64_string_decoder(), base64_string_encode)
+    disassembler.display_assembly(show_bytecode_index=True, use_labels=False) 
+    str_obfuscated = disassembler.export_bytecode()
+    print(str_obfuscated)
+
+    #print('------')
+
+    # DEBUG
+    #str_obfuscated_decoded = base64.b64decode(str_obfuscated)
+    #checking_disassembler = Disassembler(str_obfuscated_decoded)
+    #checking_disassembler.linear_disassemble()
+    #checking_disassembler.display_assembly(show_bytecode_index=True, use_labels=False) 
+
+    # DEBUG
+    #for x in disassembler.disassembled:
+    #    print('--------------------')
+    #    print(x['instruction'])
+    #    print(list(x['bytecode']))
 
     """
     Useful functionality: 
