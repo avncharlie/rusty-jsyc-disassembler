@@ -299,6 +299,7 @@ class VM {
         this.setReg(46, setInterval);
         this.setReg(20, Math);
         this.setReg(108, requestAnimationFrame);
+        this.setReg(203, atob);
     }
 
     _decodeBytecode(encodedBytecode){

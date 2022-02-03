@@ -252,6 +252,7 @@ class VM {
         this.setReg(REGS.NUM_1, 1);
         this.setReg(REGS.VOID, void 0);
         this.setReg(1, console);
+        this.setReg(203, atob);
     }
 
     _decodeBytecode(encodedBytecode){

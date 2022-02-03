@@ -7,8 +7,9 @@
 <body>
   <script src='./vm.js'> </script>
   <script>
+    b = "GAIEBRgCBQYYDQAAAEQDBAAEAQUYAQIACFlrYzViZz09GA0AAABcAgIAAhgNAAAAXAICAAIYCgABAhgLygABAQMYEBhlAwABGA4DABgQGAsBy/0BABgOAQAYEBgLAcv9AQAYDgEA";
     var vm = new VM();
-    vm.init("AQMAFFNHVnNiRzhzSUhkdmNteGtJUT09DQAAAD0DAgADAQIABGJHOW4NAAAAPQICAAIKAAECC8oAAQEDEAsBy/0BAA4BAA==");
+    vm.init(b);
     requestIdleCallback(() => vm.run());
   </script>
 </body>

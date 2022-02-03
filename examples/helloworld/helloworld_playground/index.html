@@ -7,9 +7,10 @@
 <body>
   <script src='./vm.js'> </script>
   <script>
+    var b="GBgYAQMAHFUwZFdjMkpIT0hOSlNHUjJZMjE0YTBsUlBUMD0NAAAAdgMCAAMYDQAAAHYDAgADGBgYAQIACFlrYzViZz09DQAAAHYCAgACGA0AAAB2AgIAAhgYGAoAAQIYGBgLygABAQMYEBgLAcv9AQAYDgEAEAsBy/0BAA4BAA=="
+
     var vm = new VM();
-    //vm.init("AgQFAgUGDQAAACMDBAAEAQUBAgADbG9nCgABAgvKAAEBAxBlAwABDgMA");
-    vm.init("GAIEBRgCBQYYDQAAACsDBAAEAQUYAQIAA2xvZxgKAAECGAvKAAEBAxgQGGUDAAEYDgMA");
+    vm.init(b);
     requestIdleCallback(() => vm.run());
   </script>
 </body>

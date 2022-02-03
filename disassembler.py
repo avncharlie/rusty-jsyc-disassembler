@@ -838,17 +838,82 @@ def obfuscate_strings(disassembler, decoder_bytecode, encoder_func):
     # combine bytecode together again
     disassembler.re_assemble()
 
+
+"""
+    - display_basic
+    - display_fancy
+    - NOPify
+    - obfuscate_strings
+    - export_bytecode
+
+    ./disassembler.py FILE 
+"""
+
 if __name__ == '__main__':
-    # read bytecode file and decode
+
+    if len(sys.argv) == 1:
+        print('''./disassembler.py bytecode_file [action]*
+i.e
+File to disassemble must be provided.
+Then any amount of actions can be listed afterwards.
+If no actions provided, the display_basic action will trigger.
+
+Examples:
+  $ ./disassembler.py file display_fancy
+  Display disassembly of file
+  
+  $ ./disassembler.py file NOPify export_bytecode
+  Export NOPIfied bytecode of file (to paste into VM)
+
+  $ ./disassembler.py file NOPify NOPify export_bytecode
+  Export doubly NOPIfied bytecode of file
+  
+  $ ./disassembler.py file display_fancy obf_strings display_fancy
+  1. Display disassembly of file
+  2. Obfuscate strings in bytecode
+  3. Display disassembly of file (modified from string obfuscation)
+
+Parameters
+  bytecode_file: file of Rusty-JSYC base64 encoded bytecode
+
+  actions:
+    display_basic: Display basic disassembly of bytecode
+    display_fancy: Display disassembly of bytecode with labels
+    NOPify: Disperse NOPs throughout loaded bytecode
+    obf: Obfuscate strings present in loaded bytecode
+    export: Export loaded bytecode (base64 encrypted) to paste into vm
+    jumps: Display jump table of loaded bytecode''')
+        exit()
+
+    # read bytecode file, decode and disassemble bytecode
     bytecode_b64 = open(sys.argv[1]).read()
     bytecode = base64.b64decode(bytecode_b64)
-
-    # disassemble bytecode
     disassembler = Disassembler(bytecode)
     disassembler.linear_disassemble()
 
-    # fancy assembly display
-    #disassembler.display_assembly(show_bytecode_index=False, use_labels=True) 
+    action_stack = sys.argv[2:]
+    if action_stack == []:
+        action_stack = ['display_basic']
+
+    for action in action_stack:
+        if action == 'display_basic':
+            disassembler.display_assembly(show_bytecode_index=True, use_labels=False) 
+            print('------')
+        elif action == 'display_fancy':
+            disassembler.display_assembly(show_bytecode_index=False, use_labels=True) 
+            print('------')
+        elif action == 'NOPify':
+            NOPify(disassembler)
+        elif action == 'obf_strings':
+            obfuscate_strings(disassembler, bytecode_base64_string_decoder(), base64_string_encode)
+        elif action == 'export':
+            print(disassembler.export_bytecode())
+            print('------')
+        elif action == 'jumps':
+            print(disassembler.jump_table)
+            print('------')
+        else:
+            print('action: ' + action + ' not recognised')
 
     # not fancy assembly display
     #disassembler.display_assembly(show_bytecode_index=True, use_labels=False) 
@@ -856,11 +921,11 @@ if __name__ == '__main__':
 
     #print('------')
 
-    ## obfuscate strings
-    obfuscate_strings(disassembler, bytecode_base64_string_decoder(), base64_string_encode)
-    disassembler.display_assembly(show_bytecode_index=True, use_labels=False) 
-    str_obfuscated = disassembler.export_bytecode()
-    print(str_obfuscated)
+    # obfuscate strings
+    #obfuscate_strings(disassembler, bytecode_base64_string_decoder(), base64_string_encode)
+    #disassembler.display_assembly(show_bytecode_index=True, use_labels=False) 
+    #str_obfuscated = disassembler.export_bytecode()
+    #print(str_obfuscated)
 
     #print('------')
 

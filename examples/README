@@ -1,0 +1,12 @@
+Each example has a 'template' and 'playground' folder.
+
+Use the bytecode in the template folder with the disassembler script and modify
+it (through NOPify and obf_strings actions). Then use the export action to get
+the encoded bytecode string after modification.
+
+Copy this string into the index.html in the 'playground' folder so that the VM
+gets initialised with it. Open this file in the browser to verify the
+modifications worked!
+
+Importantly, don't modify stuff template folders - that is the base version of
+the VM / bytecode produced from Rusty-JSYC.
